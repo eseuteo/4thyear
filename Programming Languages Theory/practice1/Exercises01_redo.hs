@@ -62,7 +62,9 @@ testBinVal = test ["value of zero"  ~: 0 ~=? binVal zero,
 
 -- | Define a function 'foldBin' to fold a value of type 'Bin'
 
-foldBin :: (a -> Bit -> a) -> (Bit -> a) -> Bin -> a
+foldBin ::  (a -> Bit -> a) -> 
+            (Bit -> a) -> 
+            Bin -> a
 foldBin b msb (MSB bit) = msb bit
 foldBin b msb (B bin bit) = b (foldBin b msb bin) bit
 
@@ -299,7 +301,10 @@ data Update = Var :=>: Z
 -- | and returns the updated state 's [x :=> v]'
 
 update :: State -> Update -> State
-update = undefined
+update s (x :=>: v) = s'
+    where 
+        s' y    | y == x = v
+                | otherwise = s y
 
 -- | Test your function with HUnit.
 
@@ -314,40 +319,88 @@ update = undefined
 -- | returns a state that binds "x" to 3 (the most recent update for "x").
 
 updates :: State ->  [Update] -> State
-updates = undefined
+updates s [] = s
+updates s (x:xs) = updates (update s x) xs
 
 -- |----------------------------------------------------------------------
 -- | Exercise 5
 -- |----------------------------------------------------------------------
 -- | Define a function 'foldAexp' to fold an arithmetic expression
 
-foldAexp :: a
-foldAexp = undefined
+foldAexp :: (b -> b -> b) -> 
+            (b -> b -> b) -> 
+            (b -> b -> b) -> 
+            (Var -> b) -> 
+            (Integer -> b) ->
+            Aexp -> b 
+foldAexp j i h g f (N n) = f n
+foldAexp j i h g f (V v) = g v
+foldAexp j i h g f (Add a1 a2) = h (foldAexp j i h g f a1) (foldAexp j i h g f a2)
+foldAexp j i h g f (Sub a1 a2) = i (foldAexp j i h g f a1) (foldAexp j i h g f a2)
+foldAexp j i h g f (Mult a1 a2) = j (foldAexp j i h g f a1) (foldAexp j i h g f a2)
 
 -- | Use 'foldAexp' to define the functions 'aVal'', 'fvAexp'', and 'substAexp''
 -- | and test your definitions with HUnit.
 
 aVal' :: Aexp -> State -> Z
-aVal' = undefined
+aVal' exp s = foldAexp (*) (-) (+) s (\ x -> x) exp
+
 
 fvAexp' :: Aexp -> [Var]
-fvAexp' = undefined
+fvAexp' exp = foldAexp h h h g f exp
+    where
+        f x = []
+        g x = x : []
+        h a b = nub (a ++ b)
 
 substAexp' :: Aexp -> Subst -> Aexp
-substAexp' = undefined
+substAexp' exp (x :->: v) = foldAexp j i h g f exp
+    where
+        f x = (N x)
+        g y | y == x = v
+            | otherwise = (V y)
+        h a b = (Add a b)
+        i a b = (Sub a b)
+        j a b = (Mult a b)
 
 -- | Define a function 'foldBexp' to fold a Boolean expression and use it
 -- | to define the functions 'bVal'', 'fvBexp'', and 'substAexp''. Test
 -- | your definitions with HUnit.
 
-foldBexp :: a
-foldBexp = undefined
+foldBexp :: (b -> b -> b) ->
+            (b -> b) ->
+            (Aexp -> Aexp -> b) ->
+            (Aexp -> Aexp -> b) ->
+            (Bexp -> b) ->
+            (Bexp -> b) ->
+            Bexp -> b
+foldBexp k j i h g f TRUE = f TRUE
+foldBexp k j i h g f FALSE = g FALSE
+foldBexp k j i h g f (Eq a b) = h a b
+foldBexp k j i h g f (Le a b) = i a b
+foldBexp k j i h g f (Neg b) = j (foldBexp k j i h g f b)
+foldBexp k j i h g f (And a b) = k (foldBexp k j i h g f a) (foldBexp k j i h g f b)
 
 bVal' :: Bexp -> State -> Bool
-bVal' = undefined
+bVal' exp s = foldBexp k j i h (\ x -> False) (\ x -> True) exp
+    where
+        h a b = (aVal' a s) == (aVal' b s)
+        i a b = (aVal' a s) <= (aVal' b s)
+        j b = (not b)
+        k a b = a && b
 
 fvBexp' :: Bexp -> [Var]
-fvBexp' = undefined
+fvBexp' exp = foldBexp h (\ x -> x) g g f f exp
+    where
+        f _ = []
+        g a b = nub ((fvAexp' a) ++ (fvAexp' b))
+        h a b = nub (a ++ b)
 
 substBexp' :: Bexp -> Subst -> Bexp
-substBexp' = undefined
+substBexp' exp (x :->: v) = foldBexp i h g f id id exp
+    where
+        f a b = (Eq (substAexp' a (x :->: v)) (substAexp' b (x :->: v)))
+        g a b = (Le (substAexp' a (x :->: v)) (substAexp' b (x :->: v)))
+        h b = (Neg b)
+        i a b = (And a b)
+
