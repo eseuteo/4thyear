@@ -2,6 +2,9 @@ import auxiliary_functions as af
 import numpy as np
 import matplotlib.pyplot as plt
 from functools import reduce
+from scipy import rand
+
+np.random.seed(100)
 
 # Map/landmarks related
 nLandmarks = 7
@@ -19,6 +22,7 @@ xTrue = np.zeros(shape=(3,1)) # True position
 xEst = np.zeros(shape=(3,1))
 xOdom = np.zeros(shape=(3,1))
 
+plt.ion()
 fig = plt.figure(1)
 ax = fig.add_subplot(111, aspect='equal')
 plt.grid(axis='both')
@@ -47,7 +51,7 @@ for kk in range(nLandmarks):
 print(observations)
 z = observations
 
-nIterations = 10
+nIterations = 100
 tolerance = .001
 iteration = 0
 
@@ -64,7 +68,7 @@ while np.linalg.norm(incr) > tolerance and iteration < nIterations:
         # Take an observation to each landmark, i.e.: compute distance to
         # each one (RANGE sensor affected by gaussian noise)
         _distance_kk = af.euclid_distance(xEst, af.get_pose(Map[:, kk]))[0]
-        _distance_kk += np.random.randn() * var_d
+        # _distance_kk += np.random.randn() * var_d
         est_observations.append(_distance_kk)
 
     e = np.array(observations) - np.array(est_observations)
@@ -87,10 +91,12 @@ while np.linalg.norm(incr) > tolerance and iteration < nIterations:
     plt.plot([xEst[0], xEst[0] + incr[0]], [xEst[1], xEst[1] + incr[1]], 'r')
     incr.shape = (2,1)
     xEst[0:2] = xEst[0:2] + incr
-    print('Iteration number ' + str(iteration+1) + ' residual: ' + str(residual) + ' [m] increment: ' + str(incr) + ' [m]')
+    print('Iteration number ' + str(iteration+1) + ' residual: ' + str(residual) + ' [m] increment: ' + str(np.linalg.norm(incr)) + ' [m]')
+    fig.canvas.draw()
     iteration += 1
     input('Press Enter to continue...')
 
 plt.plot(xEst[0], xEst[1], 'g*')
 plt.legend()
-plt.show()
+fig.canvas.draw()
+input("Press any key to exit")
