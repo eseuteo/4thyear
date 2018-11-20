@@ -10,7 +10,7 @@ Map = mapSize * np.random.uniform(low=0, high=1, size=(2, nLandmarks)) - mapSize
 
 # Sensor/odometry related
 var_d = .5**2   # Variance (noise) of the range measurement
-R = np.zeros(nLandmarks)    # Covariance of the observation of the landmarks
+R = np.zeros(shape=(nLandmarks, nLandmarks))    # Covariance of the observation of the landmarks
 z = np.zeros(shape=(nLandmarks, 1)) # Initially all the observations equal to zero
 U = np.diag([9, 20, np.pi/180])**2 # Covariance of the odometry noise
 
@@ -45,6 +45,7 @@ for kk in range(nLandmarks):
     _distance_kk += np.random.randn() * var_d
     observations.append(_distance_kk)
 print(observations)
+z = observations
 
 nIterations = 10
 tolerance = .001
@@ -76,10 +77,10 @@ while np.linalg.norm(incr) > tolerance and iteration < nIterations:
         jH[kk,0] = -1/(est_observations[kk]) * (Map[0, kk] - xEst[0])
         jH[kk,1] = -1/(est_observations[kk]) * (Map[1, kk] - xEst[1])
 
-    _d1 = np.linalg.inv(np.matmul(jH.T, jH))
-    delta = reduce(np.matmul, [_d1, jH.T, e])
-
     R = np.diag(var_d * np.sqrt(z))
+    _R_inv = np.linalg.inv(R)
+    _d1 = np.linalg.inv(reduce(np.matmul, [jH.T, _R_inv, jH]))
+    delta = reduce(np.matmul, [_d1, jH.T, _R_inv, e])
 
     incr = delta
 
