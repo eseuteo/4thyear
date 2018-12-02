@@ -4,12 +4,12 @@ import matplotlib.pyplot as plt
 from functools import reduce
 
 # Map/landmarks related
-nLandmarks = 7
+nLandmarks = 2
 mapSize = 140 # Size of the environment (in m.)
 Map = mapSize * np.random.uniform(low=0, high=1, size=(2, nLandmarks)) - mapSize / 2 # Uniformly distributed lanmarks in the map
 
 # Sensor/odometry related
-var_d = 1**2   # Variance (noise) of the range measurement
+var_d = 0.5**2   # Variance (noise) of the range measurement
 R = np.zeros(shape=(nLandmarks, nLandmarks))    # Covariance of the observation of the landmarks
 z = np.zeros(shape=(nLandmarks, 1)) # Initially all the observations equal to zero
 U = np.diag([9, 20, np.pi/180])**2 # Covariance of the odometry noise
@@ -95,7 +95,9 @@ while np.linalg.norm(incr) > tolerance and iteration < nIterations:
     plt.plot([xEst[0], xEst[0] + incr[0]], [xEst[1], xEst[1] + incr[1]], 'r')
     incr.shape = (2,1)
     xEst[0:2] = xEst[0:2] + incr
-    print('Iteration number ' + str(iteration+1) + ' residual: ' + str(residual) + ' [m] increment: ' + str(np.linalg.norm(incr)) + ' [m]')
+    print(  'Iteration number ' + str(iteration+1) + 
+            ' residual: ' + str(residual) + ' [m] increment: ' 
+            + str(np.linalg.norm(incr)) + ' [m]')
     fig.canvas.draw()
     iteration += 1
     input('Press Enter to continue...')

@@ -11,8 +11,8 @@ def CreateMap(NumLandmarks, Size):
     ans = 2 * Size * np.random.uniform(low=0, high=1, size=(2, NumLandmarks))
     return ans - Size
 
-def getRandomObservationFromPose(x, Map, Q, mode = 'single'):
-    if mode == 'single':
+def getRandomObservationFromPose(x, Map, Q, mode):
+    if mode != 'landmarks_in_fov':
         lm_index = randint(0, len(Map.T) - 1)
         ans = getRangeAndBearing(x, Map[:, lm_index], Q), lm_index
     else:
@@ -20,11 +20,9 @@ def getRandomObservationFromPose(x, Map, Q, mode = 'single'):
         obsy = []
         lm = []
         for i in range(len(Map.T)):
-            lm_index = randint(0, len(Map.T) - 1)
-            if (random() < .9): # Measurement of 80% of landmarks
-                obsx.append(getRangeAndBearing(x, Map[:, i], Q)[0][0])
-                obsy.append(getRangeAndBearing(x, Map[:, i], Q)[1][0])
-                lm.append(i)
+            obsx.append(getRangeAndBearing(x, Map[:, i], Q)[0][0])
+            obsy.append(getRangeAndBearing(x, Map[:, i], Q)[1][0])
+            lm.append(i)
         ans = [obsx, obsy], lm
     return ans
 
@@ -34,8 +32,8 @@ def getRangeAndBearing(x, landmark, Q):
     ans = np.matmul(Q, [[range], bearing])
     return ans
 
-def getObsJac(xPred, Landmark, Map, mode = 'single'):
-    if mode == 'single':
+def getObsJac(xPred, Landmark, Map, mode):
+    if mode != 'landmarks_in_fov':
         d = euclid_distance(xPred, get_pose(Landmark))
         dx = Landmark[0] - xPred[0]
         dy = Landmark[1] - xPred[1]
@@ -47,14 +45,13 @@ def getObsJac(xPred, Landmark, Map, mode = 'single'):
             d = euclid_distance(xPred, _lm)
             dx = _lm[0] - xPred[0]
             dy = _lm[1] - xPred[1]
-            print(ans == [])
             if ans == []:
                 ans = build_h_jac(dx, dy, d)
             else:
                 ans = np.vstack((ans, build_h_jac(dx, dy, d)))
-        print(len(ans))
         if ans == []:
-            ans = np.array([])
+            ans = np.array([[0, 0, 0], 
+                            [0, 0, 0]])
         return ans
 
 def build_h_jac(dx, dy, d):
@@ -103,9 +100,41 @@ def drawFOV(x, fov, max_range, c = ''):
         
     return plt.plot(_x0, _x1, c)
 
+def get_Q(lm, Q, mode):
+    if mode != 'landmarks_in_fov':
+        return Q
+    else:
+        Q_new = np.identity(2 * len(lm))
+        for j in range(2 * len(lm)):
+            if j % 2 == 0:
+                Q_new[j, j] = Q[0, 0]
+            else:
+                Q_new[j, j] = Q[1, 1]
+        return Q_new
+
+def get_zH(obs, pred_x, lxy, H, mode):
+    if mode != 'landmarks_in_fov':
+        return obs - getRangeAndBearing(pred_x, lxy, np.identity(2))
+    else:
+        _obs_r = obs[0]
+        _obs_b = obs[1]
+        zH = []
+        for j in range(len(lxy.T)):
+            _zH = np.array([_obs_r[j], _obs_b[j]])
+            _rb = getRangeAndBearing(pred_x, lxy[:, j], np.identity(2))
+            _r = _rb[0][0]
+            _b = _rb[1][0]
+            _zH -= [_r, _b]
+            zH.append(_zH)
+        # z - H
+        zH = np.array(zH)
+        zH.shape = (len(H), 1)
+        return zH
+
+
 def EKFLocalization():
     Size = 50
-    NumLandmarks = 10
+    NumLandmarks = 20
     Map = CreateMap(NumLandmarks, Size)
     
     # mode = 'one_landmark'
@@ -113,23 +142,23 @@ def EKFLocalization():
     mode = 'landmarks_in_fov'
 
     # Sensor characterization
-    SigmaR = 1      # SD of the range
-    SigmaB = .7     # SD of the bearing
+    SigmaR = 1                              # SD of the range
+    SigmaB = .7                             # SD of the bearing
     Q = np.diag([SigmaR ** 2, SigmaB ** 2]) # Cov matrix
-    fov = np.pi / 2     # FOV = 2 * alpha
-    max_range = Size    # Maximum sensor measurament range
+    fov = np.pi / 2                         # FOV = 2 * alpha
+    max_range = Size                        # Maximum sensor measurament range
 
     # Robot base characterization
-    SigmaX = .8     # SD in the X axis
-    SigmaY = .8     # SD in the Y axis
-    SigmaTheta = .1 # Bearing SD
+    SigmaX = .8                             # SD in the X axis
+    SigmaY = .8                             # SD in the Y axis
+    SigmaTheta = .1                         # Bearing SD
     R = np.diag([SigmaX ** 2, SigmaY ** 2, SigmaTheta ** 2]) # Cov matrix
 
     # Initialization of poses
     x = get_pose([- Size + Size / 3, - Size + Size / 3, np.pi / 2])     # Ideal robot pose
     xTrue = get_pose([- Size + Size / 3, - Size + Size / 3, np.pi / 2]) # Real robot pose
     xEst = get_pose([- Size + Size / 3, - Size + Size / 3, np.pi / 2])  # Estimated robot pose by EKF
-    sEst = np.zeros(shape=[3,3]) # Uncertainty of estimated robot pose
+    sEst = np.zeros(shape=[3,3])                                        # Uncertainty of estimated robot pose
 
     axis = np.array([- Size - 5, Size + 5, - Size - 5, Size + 5])
     fig = plt.figure(1)
@@ -162,20 +191,20 @@ def EKFLocalization():
 
         # Get sensor observation/s
         if mode == 'one_landmark':
-            obs, lm = getRandomObservationFromPose(xTrue, Map, Q)
+            obs, lm = getRandomObservationFromPose(xTrue, Map, Q, mode)
             landmark = Map[:, lm]
             plt.plot([xTrue[0], landmark[0]], [xTrue[1], landmark[1]], 'm:')
             v_map = Map
         elif mode == 'one_landmark_in_fov':
             v_map = getLandmarksInsideFOV(xTrue, Map, fov, max_range)
             if len(v_map[0]) > 0:
-                obs, lm = getRandomObservationFromPose(xTrue, v_map, Q)
+                obs, lm = getRandomObservationFromPose(xTrue, v_map, Q, mode)
                 landmark = v_map[:, lm]
                 plt.plot([xTrue[0], landmark[0]], [xTrue[1], landmark[1]], 'm:')
         elif mode == 'landmarks_in_fov':
             v_map = getLandmarksInsideFOV(xTrue, Map, fov, max_range)
             if len(v_map[0]) > 0:
-                obs, lm = getRandomObservationFromPose(xTrue, v_map, Q, 'multiple')
+                obs, lm = getRandomObservationFromPose(xTrue, v_map, Q, mode)
                 for lm_i in lm:
                     landmark = v_map[:, lm_i]
                     plt.plot([xTrue[0], landmark[0]], [xTrue[1], landmark[1]], 'm:')
@@ -183,72 +212,29 @@ def EKFLocalization():
         # EKF Localization
         G = j1(xEst, u)
         J2 = j2(xEst, u)
-
         # Prediction
-        pred_x = tcomp(xEst, u)
-        pred_s = reduce(np.matmul, [G, sEst, G.T]) + reduce(np.matmul, [J2, R, J2.T])
+        xEst = tcomp(xEst, u)
+        sEst = reduce(np.matmul, [G, sEst, G.T]) + reduce(np.matmul, [J2, R, J2.T])
+        # Correction
         if len(v_map[0]) > 0:
-            if mode == 'one_landmark' or mode == 'one_landmark_in_fov':
-                lxy = v_map[:, lm]
-                # coordenadas x y del lm
-                H = getObsJac(pred_x, lxy, v_map)
-                # Jacobiana H
-                _K_1 = np.matmul(pred_s, H.T)
-                _K_2 = np.linalg.inv(reduce(np.matmul, [H, pred_s, H.T]) + Q)
-                K = np.matmul(_K_1, _K_2)
-                # Matriz K
-                zH = obs - getRangeAndBearing(pred_x, lxy, np.identity(2))
-                # z - H
-                xEst = pred_x + np.matmul(K, zH)
-                _sEst1 = np.identity(3) - np.matmul(K, H)
-                sEst = np.matmul(_sEst1, pred_s)
-            elif mode == 'landmarks_in_fov' and len(lm) > 0:
-                lxy = v_map[:, lm]
-                H = getObsJac(pred_x, lxy, v_map, 'multiple')
-                # New Q
-                Q_new = np.identity(2 * len(lm))
-                for j in range(2 * len(lm)):
-                    if j % 2 == 0:
-                        Q_new[j, j] = Q[0, 0]
-                    else:
-                        Q_new[j, j] = Q[1, 1]
-                # Jacobiana H
-                _K_1 = np.matmul(pred_s, H.T)
-                _K_2 = np.linalg.inv(reduce(np.matmul, [H, pred_s, H.T]) + Q_new)
-                K = np.matmul(_K_1, _K_2)
-                # Matriz K
-                _obs_r = obs[0]
-                _obs_b = obs[1]
-                zH = []
-                for j in range(len(lxy.T)):
-                    _zH = np.array([_obs_r[j], _obs_b[j]])
-                    _rb = getRangeAndBearing(pred_x, lxy[:, j], np.identity(2))
-                    _r = _rb[0][0]
-                    _b = _rb[1][0]
-                    _zH -= [_r, _b]
-                    zH.append(_zH)
-                # z - H
-                zH = np.array(zH)
-                zH.shape = (len(H), 1)
-                xEst = pred_x + np.matmul(K, zH)
-                _sEst1 = np.identity(3) - np.matmul(K, H)
-                sEst = np.matmul(_sEst1, pred_s)       
-        else:
-            xEst = pred_x
-            sEst = pred_s
-
+            lxy = v_map[:, lm]                      # Landmark(s) coordinates
+            H = getObsJac(xEst, lxy, v_map, mode)   # H Jacobian
+            _Q = get_Q(lm, Q, mode)
+            _K_1 = np.matmul(sEst, H.T)
+            _K_2 = np.linalg.inv(reduce(np.matmul, [H, sEst, H.T]) + _Q)
+            K = np.matmul(_K_1, _K_2)               # K matrix
+            zH = get_zH(obs, xEst, lxy, H, mode)    # z - h(x)
+            xEst = xEst + np.matmul(K, zH)
+            _sEst1 = np.identity(3) - np.matmul(K, H)
+            sEst = np.matmul(_sEst1, sEst)
 
         # Drawings
         # Plot the FOV of the robot
         if mode == 'one_landmark_in_fov' or mode == 'landmarks_in_fov':
             h, = drawFOV(xTrue, fov, max_range, 'g')
-
-        # ax.add_artist(get_ellipse(med_x, sigmaT, 3, 'g'))
         draw_robot(x, 'r', axis)
         draw_robot(xTrue, 'b', axis)
         draw_robot(xEst, 'g', axis)
-        # print(xEst)
-        # print(sEst)
         ax.add_artist(get_ellipse(xEst, sEst, 3, 'g'))
 
         input("press button")
@@ -258,8 +244,6 @@ def EKFLocalization():
             h.remove()
             plt.draw()
         
-
-
 def euclid_distance(a, b):
     return np.sqrt((a[0] - b[0])**2 + (a[1] - b[1])**2)
 
