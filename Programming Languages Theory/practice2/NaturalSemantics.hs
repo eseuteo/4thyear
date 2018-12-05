@@ -58,7 +58,35 @@ nsStm (Inter (While b ss) s) | (bVal b s) = s''
   where
     s'' = nsStm (Inter (While b ss) (sNs ss s))
 
+-- repeat S until b
 
+-- B[b]s = ff
+nsStm (Inter (Repeat ss b) s) | not (bVal b s') = s''
+    where
+      s' = (sNs ss s)
+      s'' = nsStm (Inter (Repeat ss b) s')
+
+-- B[b]s = tt
+nsStm (Inter (Repeat ss b) s) | (bVal b s') = Final s'
+    where
+      s' = (sNs ss s)
+
+-- for x := a1 to a2 do S
+
+-- B[Le x a2]s1 = tt
+nsStm (Inter (For v a1 a2 ss) s0) | (bVal (Le (V v) a2) s1) = Final s3
+    where
+      s1 = sNs (Ass v a1) s0
+      s2 = sNs ss s1
+      s3 = sNs (For v a1' a2 ss) s2
+        where
+          a1' = (Add (V v) (N 1))
+
+-- B[Le x a2]s1 = ff
+nsStm (Inter (For v a1 a2 ss) s0) | not (bVal (Le (V v) a2) s1) = Final s1
+    where
+      s1 = sNs (Ass v a1) s0
+      
 
 -- semantic function for natural semantics
 sNs :: Stm -> State -> State

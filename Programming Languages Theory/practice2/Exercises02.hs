@@ -51,8 +51,8 @@ import           Data.List
 -- |    showState s ["y", "z", "x"] = ["y -> 6", "z -> 0", "x -> 1"]
 
 s :: State
-s "x" = 2
-s "y" = 10000
+s "x" = 0
+s "y" = 5
 s  _  = 0
 
 showState :: State -> [Var] -> [String]
@@ -72,11 +72,13 @@ showState s (x:xs) = (x ++ " -> " ++ (show (s x))) : (showState s xs)
 -- | duplicates.
 
 fvStm :: Stm -> [Var]
-fvStm (Ass v a) = fvAexp a
+fvStm (Ass v a) = nub $ v : (fvAexp a)
 fvStm (Skip) = []
-fvStm (Comp st1 st2) = nub ((fvStm st1) ++ (fvStm st2))
-fvStm (If b st1 st2) = nub ((fvStm st1) ++ (fvStm st2))
-fvStm (While b st) = fvStm st
+fvStm (Comp st1 st2) = nub $ (fvStm st1) ++ (fvStm st2)
+fvStm (If b st1 st2) = nub $ (fvBexp b) ++ (fvStm st1) ++ (fvStm st2)
+fvStm (While b st) = nub $ (fvBexp b) ++ (fvStm st)
+fvStm (Repeat st b) = nub $ (fvStm st) ++ (fvBexp b)
+fvStm (For v a1 a2 st) = nub $ v : (fvAexp a1) ++ (fvAexp a2) ++ (fvStm st)
 
 -- | Test your function with HUnit. Beware the order or appearance.
 
@@ -132,21 +134,37 @@ power = Comp
 
 {- Formal definition of 'repeat S until b'
 
+                        <S, s> -> s'  <repeat S until b, s'> -> s''
+        [repeat-ff]  -------------------------------------------------   if B[b]s' = ff
+                                <repeat S until b, s> -> s''
 
-        [repeat-ff]  ------------------------------   ¿condition?
-
-
-
-
-        [repeat-tt]  ------------------------------   ¿condition?
-
-
+                                <S, s> -> s'
+        [repeat-tt]  ---------------------------------   if B[b]s' = tt
+                        <repeat S until b, s> -> s'
+                       
 -}
 
 -- | Extend  the definitions of  data type 'Stm' (in  module While.hs)
 -- |  and  'nsStm'  (in  module NaturalSemantics.hs)  to  include  the
 -- | 'repeat  S until b' construct.  Write a couple of  WHILE programs
 -- | that use the 'repeat' statement and test your functions with HUnit.
+
+modRepeat :: Stm -- WHILE statement to compute z = x % y, where x >= y
+modRepeat = Comp 
+                (If (Le (V "x") (V "y")) 
+                (Comp (Comp 
+                (Ass "z" (V "x")) 
+                (Ass "x" (V "y"))) 
+                (Ass "y" (V "z")))
+                Skip)
+                (Comp
+                    (Repeat 
+                        (Ass "x" (Sub (V "x") (V "y")))
+                        (Neg (Le (V "y") (V "x"))))
+                    (Ass "z" (V "x")))
+                
+                        
+
 
 -- |----------------------------------------------------------------------
 -- | Exercise 4
@@ -160,7 +178,13 @@ power = Comp
 
 {- Formal definition of 'for x:= a1 to a2 do S'
 
+                        <x := a1, s0> -> s1    <S, s1> -> s2    <for x := (A[x]s2 + 1) to a2 do S, s2> -> s3 
+        [for-ff]   -------------------------------------------------------------------------------------------- if B[Le (V x) a2] s1 = tt
+                                            <for x := a1 to a2 do S, s0> -> s3
 
+                                <x := a1, s0> -> s1 
+        [for-tt]   ------------------------------------------- if B[Le (V x) a2] s1 = ff
+                        <for x := a1 to a2 do S, s0> -> s1
 -}
 
 -- | Extend  the definitions of  data type 'Stm' (in  module While.hs)
@@ -168,6 +192,24 @@ power = Comp
 -- | 'for x:= a1 to a2 do S' construct.  Write a couple of  WHILE programs
 -- | that use the 'for' statement and test your functions with HUnit.
 
+sumFor :: Stm -- WHILE program for computing something
+sumFor =    Comp 
+                (Ass "z" (N 0)) 
+                (For "x" (N 0) (V "y")
+                    (Ass "z" (Add (V "z") (V "x"))))
+
+sumForModX :: Stm -- WHILE program with modification of iterated variable
+sumForModX =    Comp 
+                (Ass "z" (N 2)) 
+                (For "x" (N 0) (V "y")
+                    (Ass "x" (Add (V "z") (V "x"))))
+
+sumNestedFor :: Stm -- WHILE program with nested for
+sumNestedFor =    Comp 
+                (Ass "z" (N 0)) 
+                (For "x" (N 1) (V "y")
+                    (For "w" (N 1) (V "y")
+                        (Ass "z" (Add (V "z") (N 1)))))
 
 -- |----------------------------------------------------------------------
 -- | Exercise 5
@@ -181,12 +223,39 @@ power = Comp
 -- representation of configurations for Aexp, (replace TODO by appropriate
 -- data definition)
 
-data ConfigAExp = TODO
+data ConfigAExp = InterAexp Aexp State
+                | FinalAexp Z
 
--- representation of the transition relation <A, s> -> s'
+-- representation of the transition relation <A, s> -> z
 
-nsAexp :: Config -> Config
-nsAexp = undefined
+nsAexp :: ConfigAExp -> ConfigAExp
+
+
+nsAexp (InterAexp (N n) s) = FinalAexp n
+
+
+nsAexp (InterAexp (V v) s) = FinalAexp (s v)
+
+
+nsAexp (InterAexp (Add a1 a2) s) = FinalAexp z
+    where 
+        z = z1 + z2
+        FinalAexp z1 = nsAexp (InterAexp a1 s)
+        FinalAexp z2 = nsAexp (InterAexp a2 s)  
+
+
+nsAexp (InterAexp (Sub a1 a2) s) = FinalAexp z
+    where
+        z = z1 - z2
+        FinalAexp z1 = nsAexp (InterAexp a1 s)
+        FinalAexp z2 = nsAexp (InterAexp a2 s)
+
+
+nsAexp (InterAexp (Mult a1 a2) s) = FinalAexp z
+    where
+        z = z1 * z2
+        FinalAexp z1 = nsAexp (InterAexp a1 s)
+        FinalAexp z2 = nsAexp (InterAexp a2 s)
 
 -- | Test your function with HUnit. Inspect the final states of at least
 -- | four different evaluations.

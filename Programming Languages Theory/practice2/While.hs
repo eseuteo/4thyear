@@ -35,6 +35,8 @@ data  Stm   =  Ass Var Aexp
             |  Comp Stm Stm
             |  If Bexp Stm Stm
             |  While Bexp Stm
+            |  Repeat Stm Bexp
+            |  For Var Aexp Aexp Stm
             deriving Show
 
 -- Example B.1
