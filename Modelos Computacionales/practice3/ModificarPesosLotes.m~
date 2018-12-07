@@ -1,0 +1,23 @@
+function ans_W = ModificarPesos(W,Ys,Data,LR)
+% Update of synaptic weights
+%   w_r(k+1) = w_r(k) + LR(k) * [x(k) - w_r(k)]
+% ans_W = Ys .* W;
+%     delta_W = Patron' - ans_W;
+%     delta_W = Ys .* delta_W;
+%     delta_W = LR * delta_W;
+%     ans_W = W + delta_W;
+    for i = 1:size(W,2)
+        ans_W = Ys(:,i) .* repmat(W(:,i), size(Ys, 1) / 2, 1);
+        ans_W = unique(ans_W, 'rows');
+        ans_W(ans_W == 0) = [];
+        delta_W = Data' - ans_W;
+        delta_W = Ys .* delta_W;
+    end
+    W_ext = repmat(W, size(Ys, 1) / 2, 1);
+    ans_W = Ys .* W_ext;
+    delta_W = Data' - ans_W;
+    delta_W = Ys .* delta_W;
+    delta_W = LR * delta_W;
+    ans_W = W + delta_W;
+end
+
