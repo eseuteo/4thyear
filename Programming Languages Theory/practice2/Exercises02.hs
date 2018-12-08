@@ -294,4 +294,77 @@ getFinalState (WhileFFNS (_ :-->: s))      = s
 -- | initial state 's' returns corresponding derivation tree.
 
 nsDeriv :: Stm -> State -> DerivTree
-nsDeriv st s = undefined
+
+nsDeriv ss@(Ass v aexp) s = (AssNS (config :-->: s'))
+    where 
+        s' = sNs ss s
+        config = Inter ss s
+
+nsDeriv ss@(Skip) s = (SkipNS (config :-->: s'))
+    where
+        s' = sNs ss s
+        config = Inter ss s
+
+nsDeriv ss@(Comp ss1 ss2) s = (CompNS (config :-->: s'') (nsDeriv ss1 s) (nsDeriv ss2 s'))
+    where
+        s'' = sNs ss s
+        s' = sNs ss1 s
+        config = Inter ss s
+
+nsDeriv ss@(If bexp ss1 ss2) s 
+    | bVal bexp s   = (IfTTNS (config :-->: s') (nsDeriv ss1 s))
+    | otherwise     = (IfFFNS (config :-->: s') (nsDeriv ss2 s))
+    where
+        s' = sNs ss s
+        config = Inter ss s
+
+nsDeriv ss@(While bexp ss1) s
+    | bVal bexp s   = (WhileTTNS (config :-->: s') (nsDeriv ss1 s) (nsDeriv ss s''))
+    | otherwise     = (WhileFFNS (config :-->: s))
+    where
+        s' = sNs ss s
+        s'' = sNs ss1 s
+        config = Inter ss s
+
+showDerivation :: DerivTree -> String
+showDerivation (AssNS (Inter stm s :-->: s')) = str
+  where
+    str = concat ["( {", show stm, ", [ ", concatMap (++" ") $ showState s (fvStm stm),
+          "]} ---> [ ", concatMap (++" ") $ showFinalState stm s, "] )"]
+
+showDerivation (SkipNS (Inter stm s :-->: s')) =  str
+  where
+    str = concat ["( {", show stm, ", [ ", concatMap (++" ") $ showState s (fvStm stm),
+          "]} ---> [ ", concatMap (++" ") $ showFinalState stm s, "] )"]
+
+showDerivation (CompNS (Inter stm s :-->: s') (d1) (d2)) = str
+  where
+    str = concat ["( {", show stm, ", [ ", concatMap (++" ") $ showState s (fvStm stm),
+           "]} ---> [ ", concatMap (++" ") $ showFinalState stm s, "]","\n",
+           (showDerivation d1) ++ "\n", (showDerivation d2), " )"]
+
+showDerivation (IfFFNS (Inter stm s :-->: s') (d1)) = str
+  where
+    str = concat ["( {", show stm, ", [ ", concatMap (++" ") $ showState s (fvStm stm),
+           "]} ---> [ ", concatMap (++" ") $ showFinalState stm s, "]","\n",
+           (showDerivation d1) ++ " )"]
+
+showDerivation (IfTTNS (Inter stm s :-->: s') (d1)) = str
+  where
+    str = concat ["( {", show stm, ", [ ", concatMap (++" ") $ showState s (fvStm stm),
+           "]} ---> [ ", concatMap (++" ") $ showFinalState stm s, "]","\n",
+           (showDerivation d1) ++ " )"]
+
+showDerivation (WhileTTNS (Inter stm s :-->: s') (d1) (d2)) = str
+    where
+        str = concat ["( {", show stm, ", [ ", concatMap (++" ") $ showState s (fvStm stm),
+            "]} ---> [ ", concatMap (++" ") $ showFinalState stm s, "]","\n",
+            (showDerivation d1) ++ "\n", (showDerivation d2), " )"]
+
+showDerivation (WhileFFNS (Inter stm s :-->: s')) =  str
+    where
+        str = concat ["( {", show stm, ", [ ", concatMap (++" ") $ showState s (fvStm stm),
+            "]} ---> [ ", concatMap (++" ") $ showFinalState stm s, "] )"]
+
+swap :: Stm
+swap =  Comp (Comp (Ass "z" (V "x")) (Ass "x" (V "y"))) (Ass "y" (V "z"))
