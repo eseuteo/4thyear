@@ -51,15 +51,27 @@ import           Data.List
 -- |    showState s ["y", "z", "x"] = ["y -> 6", "z -> 0", "x -> 1"]
 
 s :: State
-s "x" = 0
-s "y" = 5
+s "x" = 1
+s "y" = 6
 s  _  = 0
+
+s1 :: State
+s1 "x" = 3
+s1 "y" = 1
+s1 "z" = 7
+s1  _  = 0
 
 showState :: State -> [Var] -> [String]
 showState s [] = []
 showState s (x:xs) = (x ++ " -> " ++ (show (s x))) : (showState s xs) 
 
 -- | Test your function with HUnit.
+
+testShowState :: Test
+testShowState = test [  "Bindings in [] for state s" ~: [] ~=? showState s [],
+                        "Bindings in [\"x\"] for state s" ~: ["x -> 1"] ~=? showState s ["x"],
+                        "Bindings in [\"x\", \"y\"] for state s" ~: ["x -> 1", "y -> 6"] ~=? showState s ["x", "y"],
+                        "Bindings in [\"x\", \"y\"] for state s1" ~: ["x -> 3", "y -> 1"] ~=? showState s1 ["x", "y"]]
 
 
 -- | Exercise 1.2
@@ -72,15 +84,41 @@ showState s (x:xs) = (x ++ " -> " ++ (show (s x))) : (showState s xs)
 -- | duplicates.
 
 fvStm :: Stm -> [Var]
-fvStm (Ass v a) = nub $ v : (fvAexp a)
-fvStm (Skip) = []
-fvStm (Comp st1 st2) = nub $ (fvStm st1) ++ (fvStm st2)
-fvStm (If b st1 st2) = nub $ (fvBexp b) ++ (fvStm st1) ++ (fvStm st2)
-fvStm (While b st) = nub $ (fvBexp b) ++ (fvStm st)
-fvStm (Repeat st b) = nub $ (fvStm st) ++ (fvBexp b)
-fvStm (For v a1 a2 st) = nub $ v : (fvAexp a1) ++ (fvAexp a2) ++ (fvStm st)
+fvStm (Ass v a)         = nub $ v : (fvAexp a)
+fvStm (Skip)            = []
+fvStm (Comp st1 st2)    = nub $ (fvStm st1) ++ (fvStm st2)
+fvStm (If b st1 st2)    = nub $ (fvBexp b) ++ (fvStm st1) ++ (fvStm st2)
+fvStm (While b st)      = nub $ (fvBexp b) ++ (fvStm st)
+fvStm (Repeat st b)     = nub $ (fvStm st) ++ (fvBexp b)
+fvStm (For v a1 a2 st)  = nub $ v : (fvAexp a1) ++ (fvAexp a2) ++ (fvStm st)
 
 -- | Test your function with HUnit. Beware the order or appearance.
+
+-- First, some statements for testing "fvStm" are created:
+
+st1 :: Stm
+st1 = Ass "x" (N 7)
+
+st2 :: Stm
+st2 = Skip
+
+st3 :: Stm
+st3 = Comp (Ass "y" (Mult (N 3) (V "x"))) (Skip)
+
+st4 :: Stm
+st4 = If (Eq (V "x") (N 10)) (Ass ("x") (Add (V "x") (N 1))) (Skip)
+
+st5 :: Stm
+st5 = While (Le (V "x") (N 100)) (Ass "x" (Add (V "x") (N 1)))
+
+-- Then, the testing:
+
+testFvStm :: Test
+testFvStm = test [  "Free variables in st1" ~: ["x"] ~=? fvStm st1,
+                    "Free variables in st2" ~: [] ~=? fvStm st2,
+                    "Free variables in st3" ~: ["y", "x"] ~=? fvStm st3,
+                    "Free variables in st4" ~: ["x"] ~=? fvStm st4,
+                    "Free variables in st5" ~: ["x"] ~=? fvStm st5]
 
 
 -- | Exercise 1.3
@@ -96,20 +134,19 @@ showFinalState st s = showState (sNs st s) (fvStm st)
 
 -- | Test your function with HUnit. Beware the order or appearance.
 
+testShowFinalState :: Test
+testShowFinalState = test [ "Final state of <st1, s>"       ~: ["x -> 7"] ~=? showFinalState st1 s,
+                            "Final state of <st2, s>"       ~: [] ~=? showFinalState st2 s,
+                            "Final state of <st3, s1>"      ~: ["y -> 9", "x -> 3"] ~=? showFinalState st3 s1,
+                            "Final state of <st4, s>"       ~: ["x -> 1"] ~=? showFinalState st4 s,
+                            "Final state of <st5, s1>"      ~: ["x -> 101"] ~=? showFinalState st5 s1,
+                            "Final state of <factorial, s>" ~: ["y -> 1", "x -> 1"] ~=? showFinalState factorial s]
 
 -- |----------------------------------------------------------------------
 -- | Exercise 2
 -- |----------------------------------------------------------------------
 -- | Write a program in WHILE to compute z = x^y and check it by obtaining a
 -- | number of final states.
-
-{-
-z = 1;
-while (y > 1) {
-        z = z * x;
-        y = y - 1;
-}
--}
 
 power :: Stm -- WHILE statement to compute z = x^y
 power = Comp
@@ -122,6 +159,37 @@ power = Comp
 -- | Test your function with HUnit. Inspect the final states of at least
 -- | four different executions.
 
+s01 :: State
+s01 "x" =  2
+s01 "y" =  0
+s01 _   =  0
+
+s02 :: State
+s02 "x" =  3
+s02 "y" =  1
+s02 _   =  0
+
+s03 :: State
+s03 "x" =  5
+s03 "y" =  5
+s03 _   =  0
+
+s04 :: State
+s04 "x" =  10
+s04 "y" =  10
+s04 _   =  0
+
+s05 :: State
+s05 "x" = 32
+s05 "y" = 5
+s05 _   = 0
+
+testPower :: Test
+testPower = test ["Final state for 2^0" ~: ["z -> 1", "y -> 0", "x -> 2"] ~=? showFinalState power s01,
+                  "Final state for 3^1" ~: ["z -> 3", "y -> 0", "x -> 3"] ~=? showFinalState power s02,
+                  "Final state for 5^5" ~: ["z -> 3125", "y -> 0", "x -> 5"] ~=? showFinalState power s03,
+                  "Final state for 10^10" ~: ["z -> 10000000000", "y -> 0", "x -> 10"] ~=? showFinalState power s04,
+                  "Final state for 32^5" ~: ["z -> 33554432","y -> 0","x -> 32"] ~=? showFinalState power s05]
 
 -- |----------------------------------------------------------------------
 -- | Exercise 3
@@ -149,6 +217,12 @@ power = Comp
 -- | 'repeat  S until b' construct.  Write a couple of  WHILE programs
 -- | that use the 'repeat' statement and test your functions with HUnit.
 
+stm1 :: Stm
+stm1 =  (Repeat (Ass "x" (Add (V "x") (N 1))) (Eq (V "y") (N 0)))
+
+stm2 :: Stm
+stm2 =  (Repeat (Ass "x" (Add (V "x") (N 1))) (Eq (V "x") (N 6)))
+
 modRepeat :: Stm -- WHILE statement to compute z = x % y, where x >= y
 modRepeat = Comp 
                 (If (Le (V "x") (V "y")) 
@@ -162,9 +236,11 @@ modRepeat = Comp
                         (Ass "x" (Sub (V "x") (V "y")))
                         (Neg (Le (V "y") (V "x"))))
                     (Ass "z" (V "x")))
-                
-                        
-
+                    
+testRepeatUntil :: Test
+testRepeatUntil = test ["Final state of <stm1, s01>" ~: ["x -> 3", "y -> 0"] ~=? showFinalState stm1 s01,
+                        "Final state of <stm2, s01>" ~: ["x -> 6"] ~=? showFinalState stm2 s01,
+                        "Final state of <modRepeat, s05>" ~: ["x -> 2", "y -> 5", "z -> 2"] ~=? showFinalState modRepeat s05]
 
 -- |----------------------------------------------------------------------
 -- | Exercise 4
@@ -187,12 +263,16 @@ modRepeat = Comp
                         <for x := a1 to a2 do S, s0> -> s1
 -}
 
+-- Some remarks regarding our implementation of the for loop:
+--      - The condition for leaving the loop is for the iterated variable to be greater than a2
+--      - No checks regarding changing the iterated value are done
+
 -- | Extend  the definitions of  data type 'Stm' (in  module While.hs)
 -- | and  'nsStm'  (in  module NaturalSemantics.hs)  to  include  the
 -- | 'for x:= a1 to a2 do S' construct.  Write a couple of  WHILE programs
 -- | that use the 'for' statement and test your functions with HUnit.
 
-sumFor :: Stm -- WHILE program for computing something
+sumFor :: Stm -- WHILE program for computing summatory
 sumFor =    Comp 
                 (Ass "z" (N 0)) 
                 (For "x" (N 0) (V "y")
@@ -210,6 +290,13 @@ sumNestedFor =    Comp
                 (For "x" (N 1) (V "y")
                     (For "w" (N 1) (V "y")
                         (Ass "z" (Add (V "z") (N 1)))))
+
+
+testFor :: Test
+testFor = test ["Final state of <sumFor, s03>" ~: ["z -> 15","x -> 6","y -> 5"] ~=? showFinalState sumFor s03,
+                "Final state of <sumForModX, s01>" ~: ["z -> 2","x -> 3","y -> 0"] ~=? showFinalState sumForModX s01,
+                "Final state of <sumNestedFor, s04>" ~: ["z -> 100","x -> 11","y -> 10","w -> 11"] ~=? showFinalState sumNestedFor s04,
+                "Final state of <sumNestedFor, s05>" ~: ["z -> 25","x -> 6","y -> 5","w -> 6"] ~=? showFinalState sumNestedFor s05]
 
 -- |----------------------------------------------------------------------
 -- | Exercise 5
@@ -230,12 +317,9 @@ data ConfigAExp = InterAexp Aexp State
 
 nsAexp :: ConfigAExp -> ConfigAExp
 
-
 nsAexp (InterAexp (N n) s) = FinalAexp n
 
-
 nsAexp (InterAexp (V v) s) = FinalAexp (s v)
-
 
 nsAexp (InterAexp (Add a1 a2) s) = FinalAexp z
     where 
@@ -243,13 +327,11 @@ nsAexp (InterAexp (Add a1 a2) s) = FinalAexp z
         FinalAexp z1 = nsAexp (InterAexp a1 s)
         FinalAexp z2 = nsAexp (InterAexp a2 s)  
 
-
 nsAexp (InterAexp (Sub a1 a2) s) = FinalAexp z
     where
         z = z1 - z2
         FinalAexp z1 = nsAexp (InterAexp a1 s)
         FinalAexp z2 = nsAexp (InterAexp a2 s)
-
 
 nsAexp (InterAexp (Mult a1 a2) s) = FinalAexp z
     where
@@ -260,6 +342,36 @@ nsAexp (InterAexp (Mult a1 a2) s) = FinalAexp z
 -- | Test your function with HUnit. Inspect the final states of at least
 -- | four different evaluations.
 
+-- Showing value of a ConfigAExp
+showAexpVal :: ConfigAExp -> Z
+showAexpVal (InterAexp aexp state) = error "showAexpVal: not a final configuration"
+showAexpVal (FinalAexp z) = z
+
+-- A few ConfigAexp
+cea1 :: ConfigAExp
+cea1 = InterAexp (N 0) s01
+
+cea2 :: ConfigAExp
+cea2 = InterAexp (V "x") s02
+
+cea3 :: ConfigAExp
+cea3 = InterAexp (Mult (N 2) (V "x")) s03
+
+cea4 :: ConfigAExp
+cea4 = InterAexp (Add (Mult (N 2) (V "x")) (Sub (V "x") (Mult (N 2) (V "y")))) s04
+
+cea5 :: ConfigAExp
+cea5 = InterAexp (Mult (Add (Add (V "x") (V "y")) (V "z")) (V "z")) s05
+
+-- | Test your function with HUnit. Inspect the final states of at least
+-- | four different evaluations.
+
+testNsAexp :: Test
+testNsAexp = test [     "Value of (N 0) in state []" ~: 0 ~=? (showAexpVal $ nsAexp cea1),
+                        "Value ea2 st1" ~: 3 ~=? (showAexpVal $ nsAexp cea2),
+                        "Value ea3 st1" ~: 10 ~=? (showAexpVal $ nsAexp cea3),
+                        "Value ea4 st1" ~: 10 ~=? (showAexpVal $ nsAexp cea4),
+                        "Value ea5 st1" ~: 0 ~=? (showAexpVal $ nsAexp cea5)]
 
 -- |----------------------------------------------------------------------
 -- | Exercise 6
@@ -326,6 +438,32 @@ nsDeriv ss@(While bexp ss1) s
         s'' = sNs ss1 s
         config = Inter ss s
 
+-- Some programs for testing ---------------------------------------------------
+
+swap :: Stm
+swap =  Comp (Comp (Ass "z" (V "x")) (Ass "x" (V "y"))) (Ass "y" (V "z"))
+
+comp :: Stm
+comp = Comp (Ass "z" (V "x")) (Ass "y" (V "z"))
+
+ifelse :: Stm
+ifelse = If (Le (V "x") (N 5)) (Ass "y" (N 10)) (Ass "y" (N 20))
+
+sSwap :: State
+sSwap "x" = 5
+sSwap "y" = 7
+sSwap _   = 0
+
+--------------------------------------------------------------------------------
+
+-- Show derivation tree
+ioDerivation :: DerivTree -> IO ()
+ioDerivation dt = io $ showDerivation dt
+
+io :: String -> IO ()
+io st = putStr ("\n\n"++st++"\n\n")
+--------------------------------------------------------------------------------
+
 showDerivation :: DerivTree -> String
 showDerivation (AssNS (Inter stm s :-->: s')) = str
   where
@@ -365,6 +503,3 @@ showDerivation (WhileFFNS (Inter stm s :-->: s')) =  str
     where
         str = concat ["( {", show stm, ", [ ", concatMap (++" ") $ showState s (fvStm stm),
             "]} ---> [ ", concatMap (++" ") $ showFinalState stm s, "] )"]
-
-swap :: Stm
-swap =  Comp (Comp (Ass "z" (V "x")) (Ass "x" (V "y"))) (Ass "y" (V "z"))
