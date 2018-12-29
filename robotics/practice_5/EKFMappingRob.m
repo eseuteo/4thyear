@@ -58,7 +58,7 @@ function EKFMappingRob
     
     % Matrix to store errors
     Q_det = zeros(nFeatures, nSteps);
-    xIndex = ones(nFeatures, 1);
+    currentIndex = ones(nFeatures, 1);
     FeatureIndex = 0;
     
     
@@ -156,8 +156,8 @@ function EKFMappingRob
         index = round(FeatureIndex + 1) / 2;
         if (FeatureIndex)
             Q_lm = PEst(FeatureIndex:FeatureIndex+1, FeatureIndex:FeatureIndex+1);
-            Q_det(index, xIndex(index)) = det(Q_lm);
-            xIndex(index) = xIndex(index) + 1;
+            Q_det(index, currentIndex(index)) = det(Q_lm);
+            currentIndex(index) = currentIndex(index) + 1;
         end       
         
         % Drawings
@@ -181,7 +181,7 @@ function EKFMappingRob
         end
     end
     
-    Q_det = Q_det(:, 1:max(xIndex));
+    Q_det = Q_det(:, 1:max(currentIndex));
     figure(); hold on;
     title("Covariance matrix determinants evolution");
     for i = 1:nFeatures
