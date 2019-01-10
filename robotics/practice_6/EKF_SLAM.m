@@ -169,27 +169,21 @@ function EKF_SLAM
             PEst = PPred;
         end
 
-%
-% Point 3, Robot pose and features localization errors and determinants
-%
+        %
+        % Point 3, Robot pose and features localization errors and determinants
+        %
 
-for l = 1:nFeatures
-    if (~isnan(MappedFeatures(l,1)))
-        index = MappedFeatures(l,1);
-        FeatDetStore(l, k) = det(PEst(index:index+1, index:index+1));
-        FeatErrStore(l, k) = norm(Map(1:2, l) - xEst(index:index+1));
-    end
-end
+        for l = 1:nFeatures
+            if (~isnan(MappedFeatures(l,1)))
+                index = MappedFeatures(l,1);
+                FeatDetStore(l, k) = det(PEst(index:index+1, index:index+1));
+                FeatErrStore(l, k) = norm(Map(1:2, l) - xEst(index:index+1));
+            end
+        end
 
-PDetStore(:, k) = det(PEst(1:3, 1:3));
-PErrStore(:, k) = [norm(xRobot(1:2) - xRobotTrue(1:2));
-    norm(xRobot(3) - xRobotTrue(3))];
-                
-%         if (FeatureIndex) 
-%             FeatDetStore(iFeature, k) = det([PEst(FeatureIndex:FeatureIndex+1, FeatureIndex:FeatureIndex+1)]);
-%             FeatErrStore(iFeature, k) = sqrt((sum(Map(1:2, iFeature) - xEst(FeatureIndex:FeatureIndex+1)).^2));
-% %             currentIndex(iFeature) = currentIndex(iFeature) + 1;
-%         end
+        PDetStore(:, k) = det(PEst(1:3, 1:3));
+        PErrStore(:, k) = [norm(xRobot(1:2) - xRobotTrue(1:2));
+            norm(xRobot(3) - xRobotTrue(3))];
 
         % Drawings
         if(mod(k - 2,DrawEveryNFrames)==0)
