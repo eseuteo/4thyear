@@ -1,0 +1,36 @@
+var x := 1
+var y := 5
+var z := x + y
+
+
+    begin
+        var n := 10
+        var x := 60
+        S
+    end
+
+    // No tengo que limpiar el environment porque el acceso se hace a través de un filtro
+
+                   5 ---> 60        x->5
+                   4 ---> 10        n->4
+                   3 ---> 6         z->3
+                   2 ---> 5         y->2
+                   1 ---> 1         x->1
+            next = 0 ---> 3
+                      sto           envv
+
+var x := 6
+proc p is
+    y := x + y
+var y := 8
+call p
+
+// La suma vale 6
+
+var x := 6
+proc p is
+    y := x + y
+y := 8
+call p
+
+// La suma vale 14
